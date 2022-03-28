@@ -86,6 +86,13 @@ public:
 		}
 		this->consumption_per_second = this->consumption * 3e-5;
 	}
+	void set_consumption_per_second(double consumption)
+	{
+		if (consumption >= 0.0003 && consumption <= 0.003)
+		{
+			this->consumption_per_second = consumption;
+		}
+	}
 	void start()
 	{
 		is_started = true;
@@ -175,11 +182,12 @@ public:
 
 	void accellerate()
 	{
-		if (!control.free_wheeling_thread.joinable())
-			control.free_wheeling_thread = std::thread(&Car::free_wheeling, this);
 		if (driver_inside && engine.started() && speed < MAX_SPEED)
 		{
 			speed += accelleration;
+			speed_consumption();
+		if (!control.free_wheeling_thread.joinable())
+			control.free_wheeling_thread = std::thread(&Car::free_wheeling, this);
 			std::this_thread::sleep_for(1s);
 		}
 	}
@@ -188,9 +196,20 @@ public:
 		if (driver_inside && speed > 0)
 		{
 			speed -= accelleration;
+			speed_consumption();
 			if (speed < 0) speed = 0;
 			std::this_thread::sleep_for(1s);
 		}
+	}
+
+	void speed_consumption()
+	{
+		if (this->speed >= 1 &&this-> speed <= 60)engine.set_consumption_per_second(0.002);
+		else if (speed >= 61 && speed <= 100)engine.set_consumption_per_second(0.0014);
+		else if (speed >= 101 && speed <= 140)engine.set_consumption_per_second(0.002);
+		else if (speed >= 141 && speed <= 200)engine.set_consumption_per_second(0.0025);
+		else if (speed >= 201)engine.set_consumption_per_second(0.003);
+		else if (speed == 0)engine.set_consumption_per_second(engine.get_consumption() * 3e-5);
 	}
 	void control_car()
 	{
@@ -273,6 +292,7 @@ public:
 			}
 			cout << endl;
 			cout << "Engine is: " << (engine.started() ? "started" : "stopped") << endl;
+			cout << engine.get_consumption_per_second() << endl;
 			std::this_thread::sleep_for(1s);
 		}
 	}
@@ -325,7 +345,7 @@ void main()
 	engine.info();
 #endif // ENGINE_CHECK
 
-	Car bmw(12, 60);
+	Car bmw(20, 60);
 	/*bmw.info();*/
 	bmw.control_car();
 }
