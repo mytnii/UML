@@ -13,6 +13,7 @@ using namespace std;
 
 #define MIN_ENGIN_CONSUMPTION 3
 #define MAX_ENGINE_CONSUPTION 25
+#define DEFAULT_ENGINE_CONSUMPTION 10
 
 #define MAX_SPEED_LOW_LIMIT 150
 #define MAX_SPEED_HIGHT_LIMIT 300
@@ -64,6 +65,7 @@ class Engine
 {
 	double consumption; //расход на 100 км
 	double consumption_per_second; //расход за одну секунду
+	double default_consumption_per_second; //расход за одну секунду
 	bool is_started; // двигатель заведен или заглушен
 public:
 	double get_consumption()const
@@ -85,6 +87,7 @@ public:
 			this->consumption = 10;
 		}
 		this->consumption_per_second = this->consumption * 3e-5;
+		this->default_consumption_per_second = this->consumption * 3e-5;
 	}
 	void set_consumption_per_second(double consumption)
 	{
@@ -92,6 +95,15 @@ public:
 		{
 			this->consumption_per_second = consumption;
 		}
+	}
+	void speed_consumption(int speed)
+	{
+		if (speed >= 1 &&speed <= 60)consumption_per_second = 0.002;
+		else if (speed >= 61 && speed <= 100)consumption_per_second = 0.0014;
+		else if (speed >= 101 && speed <= 140)consumption_per_second = 0.002;
+		else if (speed >= 141 && speed <= 200)consumption_per_second = 0.0025;
+		else if (speed >= 201)consumption_per_second = 0.003;
+		else if (speed == 0)consumption_per_second = get_consumption() * 3e-5;
 	}
 	void start()
 	{
@@ -121,6 +133,7 @@ public:
 	{
 		cout << "Engine is over" << endl;
 	}
+
 };
 
 class Car
@@ -160,6 +173,11 @@ public:
 	}
 	void get_out()
 	{
+		if (speed > 0)
+		{
+			cout << "Выход из машины во время движения может навредить вашему здоровью" << endl;
+			return;
+		}
 		driver_inside = false;
 		if(control.panel_thread.joinable())control.panel_thread.join();
 		system("CLS");
@@ -185,7 +203,7 @@ public:
 		if (driver_inside && engine.started() && speed < MAX_SPEED)
 		{
 			speed += accelleration;
-			speed_consumption();
+			engine.speed_consumption(speed);
 		if (!control.free_wheeling_thread.joinable())
 			control.free_wheeling_thread = std::thread(&Car::free_wheeling, this);
 			std::this_thread::sleep_for(1s);
@@ -196,21 +214,12 @@ public:
 		if (driver_inside && speed > 0)
 		{
 			speed -= accelleration;
-			speed_consumption();
+			engine.speed_consumption(speed);
 			if (speed < 0) speed = 0;
 			std::this_thread::sleep_for(1s);
 		}
 	}
 
-	void speed_consumption()
-	{
-		if (this->speed >= 1 &&this-> speed <= 60)engine.set_consumption_per_second(0.002);
-		else if (speed >= 61 && speed <= 100)engine.set_consumption_per_second(0.0014);
-		else if (speed >= 101 && speed <= 140)engine.set_consumption_per_second(0.002);
-		else if (speed >= 141 && speed <= 200)engine.set_consumption_per_second(0.0025);
-		else if (speed >= 201)engine.set_consumption_per_second(0.003);
-		else if (speed == 0)engine.set_consumption_per_second(engine.get_consumption() * 3e-5);
-	}
 	void control_car()
 	{
 		cout << "Press Enter to get in" << endl;
@@ -270,10 +279,12 @@ public:
 				
 				break;
 
-			case Escape:get_out(); stop_engine();	break;
+			case Escape: speed = 0; get_out(); stop_engine();	break;
 			}
 			
 		} while (key != Escape);
+		if (speed == 0 && control.free_wheeling_thread.joinable())
+			control.free_wheeling_thread.join();
 	}
 
 	void panel()const
@@ -281,6 +292,8 @@ public:
 		while (driver_inside)
 		{
 			system("CLS");
+			for (int i = 0; i < speed / 3; ++i)cout << "|";
+			cout << endl;
 			cout << "Speed:\t" << speed << "km/h\n";
 			cout << "Fuel level: " << tank.get_fuel_level() << " liters\t";
 			if (tank.get_fuel_level() < 5)
@@ -292,7 +305,7 @@ public:
 			}
 			cout << endl;
 			cout << "Engine is: " << (engine.started() ? "started" : "stopped") << endl;
-			cout << engine.get_consumption_per_second() << endl;
+			if(engine.started())cout << "Consumption per second: " << engine.get_consumption_per_second() << endl;
 			std::this_thread::sleep_for(1s);
 		}
 	}
@@ -310,8 +323,10 @@ public:
 		{
 			speed--;
 			if (speed < 0) speed = 0;
+			engine.speed_consumption(speed);
 			std::this_thread::sleep_for(1s);
 		}
+		engine.speed_consumption(speed);
 	}
 	void info()const
 	{
@@ -345,7 +360,7 @@ void main()
 	engine.info();
 #endif // ENGINE_CHECK
 
-	Car bmw(20, 60);
+	Car bmw(12, 60);
 	/*bmw.info();*/
 	bmw.control_car();
 }
